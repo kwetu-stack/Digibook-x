@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}New Visitor · Digibook‑X{% endblock %}
+{% block content %}
+<h1 class="h1">New Visitor (Check-in)</h1>
+<form method="POST" enctype="multipart/form-data" class="card">
+  <div class="row">
+    <div class="col"><label>Full Name</label><input class="input" name="full_name" required></div>
+    <div class="col"><label>Phone</label><input class="input" name="phone" required></div>
+    <div class="col"><label>ID/Passport</label><input class="input" name="id_number"></div>
+    <div class="col"><label>Vehicle Reg (optional)</label><input class="input" name="vehicle_reg"></div>
+  </div>
+  <div class="row">
+    <div class="col">
+      <label>Host</label>
+      <select name="host_id" required>
+        <option value="">-- select host --</option>
+        {% for h in hosts %}<option value="{{ h.id }}">{{ h.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col">
+      <label>Unit/Dept</label>
+      <select name="unit_id" required>
+        <option value="">-- select unit --</option>
+        {% for u in units %}<option value="{{ u.id }}">{{ u.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col">
+      <label>Purpose</label>
+      <select name="purpose_id" required>
+        <option value="">-- select purpose --</option>
+        {% for p in purposes %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col">
+      <label>Photo (optional)</label>
+      <input type="file" name="photo" accept="image/*" capture="environment">
+    </div>
+    <div class="col">
+      <label>Notes</label>
+      <input class="input" name="notes">
+    </div>
+  </div>
+  <div class="form-actions">
+    <button class="btn primary">Save & Check-in</button>
+    <a class="btn" href="{{ url_for('visitors_list') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

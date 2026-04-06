@@ -1,0 +1,47 @@
+{% set current = request.path %}
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Digibook-X{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  {% if is_demo() %}
+  <div style="background:#f59e0b;color:#000;padding:12px;text-align:center;font-weight:bold;">
+    ⚠️ Demo Mode — Changes will not be saved
+  </div>
+  {% endif %}
+  <header class="topbar">
+    <div class="brand">🔹 Digibook‑X</div>
+    <nav>
+      <a href="{{ url_for('dashboard') }}" class="{{ 'active' if current=='/' else '' }}">Dashboard</a>
+      <a href="{{ url_for('visitors_list') }}" class="{{ 'active' if current.startswith('/visitors') else '' }}">Visitors</a>
+      <a href="{{ url_for('hosts_list') }}" class="{{ 'active' if current.startswith('/hosts') else '' }}">Hosts</a>
+      <a href="{{ url_for('units_list') }}" class="{{ 'active' if current.startswith('/units') else '' }}">Units</a>
+      <a href="{{ url_for('purposes_list') }}" class="{{ 'active' if current.startswith('/purposes') else '' }}">Purposes</a>
+      <a href="{{ url_for('reports') }}" class="{{ 'active' if current.startswith('/reports') else '' }}">Reports</a>
+      {% if current_user.is_authenticated and current_user.role=='Admin' %}
+      <a href="{{ url_for('users_list') }}" class="{{ 'active' if current.startswith('/users') else '' }}">Users</a>
+      <a href="{{ url_for('settings_page') }}" class="{{ 'active' if current.startswith('/settings') else '' }}">Settings</a>
+      {% endif %}
+    </nav>
+    <div style="margin-left:auto">
+      {% if current_user.is_authenticated %}
+        <span style="color:#a7c7ff;margin-right:8px">{{ current_user.name }} ({{ current_user.role }})</span>
+        <a class="btn small" href="{{ url_for('logout') }}">Logout</a>
+      {% else %}
+        <a class="btn small" href="{{ url_for('login') }}">Login</a>
+      {% endif %}
+    </div>
+  </header>
+  <main class="container">
+    {% for m, cat in get_flashed_messages(with_categories=true) %}
+      <div class="flash {{ 'error' if cat=='error' else '' }}">{{ m|safe }}</div>
+    {% endfor %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer>Powered by Kwetu Partners Ltd · {{ now().strftime('%Y') }}</footer>
+</body>
+</html>

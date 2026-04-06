@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Edit Visitor · Digibook‑X{% endblock %}
+{% block content %}
+<h1 class="h1">Edit Visitor</h1>
+<form method="POST" enctype="multipart/form-data" class="card">
+  <div class="row">
+    <div class="col"><label>Full Name</label><input class="input" name="full_name" value="{{ v.full_name }}" required></div>
+    <div class="col"><label>Phone</label><input class="input" name="phone" value="{{ v.phone }}" required></div>
+    <div class="col"><label>ID/Passport</label><input class="input" name="id_number" value="{{ v.id_number }}"></div>
+    <div class="col"><label>Vehicle Reg</label><input class="input" name="vehicle_reg" value="{{ v.vehicle_reg }}"></div>
+  </div>
+  <div class="row">
+    <div class="col">
+      <label>Host</label>
+      <select name="host_id" required>
+        {% for h in hosts %}<option value="{{ h.id }}" {{ 'selected' if v.host_id==h.id else '' }}>{{ h.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col">
+      <label>Unit/Dept</label>
+      <select name="unit_id" required>
+        {% for u in units %}<option value="{{ u.id }}" {{ 'selected' if v.unit_id==u.id else '' }}>{{ u.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col">
+      <label>Purpose</label>
+      <select name="purpose_id" required>
+        {% for p in purposes %}<option value="{{ p.id }}" {{ 'selected' if v.purpose_id==p.id else '' }}>{{ p.name }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col">
+      <label>Replace Photo</label>
+      <input type="file" name="photo" accept="image/*">
+    </div>
+    <div class="col">
+      <label>Notes</label>
+      <input class="input" name="notes" value="{{ v.notes or '' }}">
+    </div>
+  </div>
+  <div class="form-actions">
+    <button class="btn primary">Save Changes</button>
+    <a class="btn" href="{{ url_for('visitors_list') }}">Cancel</a>
+  </div>
+</form>
+
+<div class="card">
+  <div class="form-actions">
+    {% if not v.checkout_time %}
+      <form method="POST" action="{{ url_for('visitor_checkout', id=v.id) }}">
+        <button class="btn">Checkout Now</button>
+      </form>
+    {% else %}
+      <span class="badge out">Checked-out at {{ v.checkout_time.strftime('%Y-%m-%d %H:%M') }}</span>
+    {% endif %}
+    {% if is_demo() %}
+      <button class="btn danger" disabled title="Disabled in demo mode">Delete</button>
+    {% else %}
+      <form method="POST" action="{{ url_for('visitor_delete', id=v.id) }}" onsubmit="return confirm('Delete this record?')">
+        <button class="btn danger">Delete</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Unit · Digibook‑X{% endblock %}
+{% block content %}
+<h1 class="h1">{{ 'Edit Unit' if u else 'New Unit' }}</h1>
+<form method="POST" class="card">
+  <div class="row">
+    <div class="col"><label>Name</label><input class="input" name="name" value="{{ u.name if u else '' }}" required></div>
+    <div class="col">
+      <label>Type</label>
+      <select name="type" required>
+        {% for t in ['Office','House','Shop','Dept','Other'] %}
+          <option value="{{ t }}" {{ 'selected' if u and u.type==t else '' }}>{{ t }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col"><label>Location</label><input class="input" name="location" value="{{ u.location if u else '' }}"></div>
+  </div>
+  <div class="form-actions">
+    <button class="btn primary">Save</button>
+    <a class="btn" href="{{ url_for('units_list') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

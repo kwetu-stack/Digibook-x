@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Reports · Digibook‑X{% endblock %}
+{% block content %}
+<h1 class="h1">Reports</h1>
+<form method="get" class="card">
+  <div class="row">
+    <div class="col"><label>From</label><input class="input" type="date" name="from" value="{{ q_from or '' }}"></div>
+    <div class="col"><label>To</label><input class="input" type="date" name="to" value="{{ q_to or '' }}"></div>
+    <div class="col">
+      <label>Status</label>
+      <select name="status">
+        <option value="">-- any --</option>
+        <option value="inside" {{ 'selected' if q_status=='inside' else '' }}>Inside</option>
+        <option value="out" {{ 'selected' if q_status=='out' else '' }}>Checked-out</option>
+      </select>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col">
+      <label>Host</label>
+      <select name="host_id">
+        <option value="">-- any --</option>
+        {% for h in hosts %}<option value="{{ h.id }}" {{ 'selected' if q_host_id==h.id|string else '' }}>{{ h.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col">
+      <label>Unit/Dept</label>
+      <select name="unit_id">
+        <option value="">-- any --</option>
+        {% for u in units %}<option value="{{ u.id }}" {{ 'selected' if q_unit_id==u.id|string else '' }}>{{ u.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col">
+      <label>Purpose</label>
+      <select name="purpose_id">
+        <option value="">-- any --</option>
+        {% for p in purposes %}<option value="{{ p.id }}" {{ 'selected' if q_purpose_id==p.id|string else '' }}>{{ p.name }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="form-actions">
+    <button class="btn">Apply</button>
+    <a class="btn" href="{{ url_for('reports') }}">Reset</a>
+    <a class="btn" href="{{ url_for('export_csv') }}?{{ request.query_string.decode() }}">Export CSV</a>
+    <a class="btn" href="{{ url_for('export_pdf') }}?{{ request.query_string.decode() }}">Export PDF</a>
+  </div>
+</form>
+
+<div class="card">
+  <div class="h2">Results ({{ items|length }})</div>
+  <table class="table">
+    <tr><th>Date</th><th>Name</th><th>Host</th><th>Unit</th><th>Purpose</th><th>Status</th></tr>
+    {% for v in items %}
+    <tr>
+      <td>{{ v.checkin_time.strftime('%Y-%m-%d %H:%M') }}</td>
+      <td>{{ v.full_name }}</td>
+      <td>{{ v.host.name if v.host else '' }}</td>
+      <td>{{ v.unit.name if v.unit else '' }}</td>
+      <td>{{ v.purpose.name if v.purpose else '' }}</td>
+      <td>{% if not v.checkout_time %}<span class="badge inside">Inside</span>{% else %}<span class="badge out">Checked-out</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

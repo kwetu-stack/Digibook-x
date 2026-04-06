@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Hosts · Digibook‑X{% endblock %}
+{% block content %}
+<div class="row" style="align-items:center">
+  <h1 class="h1" style="flex:1">Hosts</h1>
+  <a class="btn primary" href="{{ url_for('host_new') }}">New Host</a>
+</div>
+<div class="card">
+  <table class="table">
+    <tr><th>Name</th><th>Phone</th><th>Email</th><th>Unit</th><th>Active</th><th></th></tr>
+    {% for h in items %}
+    <tr>
+      <td>{{ h.name }}</td>
+      <td>{{ h.phone or '-' }}</td>
+      <td>{{ h.email or '-' }}</td>
+      <td>{{ h.unit.name if h.unit else '-' }}</td>
+      <td>{{ 'Yes' if h.active else 'No' }}</td>
+      <td><a class="btn small" href="{{ url_for('host_edit', id=h.id) }}">Edit</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

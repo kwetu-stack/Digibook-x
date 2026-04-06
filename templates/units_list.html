@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Units · Digibook‑X{% endblock %}
+{% block content %}
+<div class="row" style="align-items:center">
+  <h1 class="h1" style="flex:1">Units / Departments</h1>
+  <a class="btn primary" href="{{ url_for('unit_new') }}">New Unit</a>
+</div>
+<div class="card">
+  <table class="table">
+    <tr><th>Name</th><th>Type</th><th>Location</th><th></th></tr>
+    {% for u in items %}
+    <tr>
+      <td>{{ u.name }}</td><td>{{ u.type }}</td><td>{{ u.location or '-' }}</td>
+      <td><a class="btn small" href="{{ url_for('unit_edit', id=u.id) }}">Edit</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Host · Digibook‑X{% endblock %}
+{% block content %}
+<h1 class="h1">{{ 'Edit Host' if h else 'New Host' }}</h1>
+<form method="POST" class="card">
+  <div class="row">
+    <div class="col"><label>Name</label><input class="input" name="name" value="{{ h.name if h else '' }}" required></div>
+    <div class="col"><label>Phone</label><input class="input" name="phone" value="{{ h.phone if h else '' }}"></div>
+    <div class="col"><label>Email</label><input class="input" name="email" value="{{ h.email if h else '' }}"></div>
+  </div>
+  <div class="row">
+    <div class="col">
+      <label>Unit/Dept</label>
+      <select name="unit_id">
+        <option value="">-- none --</option>
+        {% for u in units %}
+          <option value="{{ u.id }}" {{ 'selected' if h and h.unit_id==u.id else '' }}>{{ u.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col">
+      <label>Active?</label>
+      <select name="active">
+        <option value="1" {{ 'selected' if not h or h.active else '' }}>Yes</option>
+        <option value="0" {{ 'selected' if h and not h.active else '' }}>No</option>
+      </select>
+    </div>
+  </div>
+  <div class="form-actions">
+    <button class="btn primary">Save</button>
+    <a class="btn" href="{{ url_for('hosts_list') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

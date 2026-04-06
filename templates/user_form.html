@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}User · Digibook‑X{% endblock %}
+{% block content %}
+<h1 class="h1">{{ 'Edit User' if u else 'New User' }}</h1>
+<form method="POST" class="card">
+  <div class="row">
+    <div class="col"><label>Name</label><input class="input" name="name" value="{{ u.name if u else '' }}" required></div>
+    <div class="col"><label>Username</label><input class="input" name="username" value="{{ u.username if u else '' }}" required></div>
+    <div class="col">
+      <label>Role</label>
+      <select name="role" required>
+        {% for r in ['Admin','Guard'] %}
+          <option value="{{ r }}" {{ 'selected' if u and u.role==r else '' }}>{{ r }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col">
+      <label>Active?</label>
+      <select name="active">
+        <option value="1" {{ 'selected' if not u or u.active else '' }}>Yes</option>
+        <option value="0" {{ 'selected' if u and not u.active else '' }}>No</option>
+      </select>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col"><label>Password {{ '(leave blank to keep)' if u else '' }}</label><input class="input" type="password" name="password" {{ '' if u else 'required' }}></div>
+  </div>
+  <div class="form-actions">
+    <button class="btn primary">Save</button>
+    <a class="btn" href="{{ url_for('users_list') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

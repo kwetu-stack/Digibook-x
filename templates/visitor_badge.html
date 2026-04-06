@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Badge {{ v.badge_no }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    body{background:#fff;color:#000}
+    .badge-card{width:340px;border:1px solid #d1d5db;border-radius:12px;padding:12px;margin:20px auto;font-family:Inter,system-ui,sans-serif}
+    .site{font-weight:700;margin-bottom:6px}
+    .line{border-bottom:1px dashed #d1d5db;margin:8px 0}
+    .meta{font-size:.9rem}
+  </style>
+</head>
+<body onload="window.print()">
+  <div class="badge-card">
+    <div class="site">{{ setting.site_name or 'Site' }}</div>
+    <div class="line"></div>
+    <div><strong>Visitor:</strong> {{ v.full_name }}</div>
+    <div class="meta"><strong>Badge:</strong> {{ v.badge_no }}</div>
+    <div class="meta"><strong>Host:</strong> {{ v.host.name if v.host else '-' }}</div>
+    <div class="meta"><strong>Unit:</strong> {{ v.unit.name if v.unit else '-' }}</div>
+    <div class="meta"><strong>Purpose:</strong> {{ v.purpose.name if v.purpose else '-' }}</div>
+    <div class="meta"><strong>Check-in:</strong> {{ v.checkin_time.strftime('%Y-%m-%d %H:%M') }}</div>
+    {% if setting.badge_footer %}<div class="line"></div><div class="meta">{{ setting.badge_footer }}</div>{% endif %}
+  </div>
+</body>
+</html>

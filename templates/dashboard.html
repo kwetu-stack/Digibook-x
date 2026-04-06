@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Digibook‑X{% endblock %}
+{% block content %}
+<h1 class="h1">Welcome to Digibook‑X</h1>
+<p class="h2">Quick stats</p>
+<div class="grid cols-3">
+  <div class="card">
+    <div class="h2">Today Check-ins</div>
+    <div style="font-size:2rem;font-weight:700">{{ tiles.today }}</div>
+  </div>
+  <div class="card">
+    <div class="h2">Currently Inside</div>
+    <div style="font-size:2rem;font-weight:700">{{ tiles.inside }}</div>
+  </div>
+  <div class="card">
+    <div class="h2">This Month Visits</div>
+    <div style="font-size:2rem;font-weight:700">{{ tiles.month }}</div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px">
+  <div class="h2">Recent visitors</div>
+  <table class="table">
+    <tr><th>Time</th><th>Name</th><th>Host</th><th>Unit</th><th>Purpose</th><th>Status</th></tr>
+    {% for v in recent %}
+      <tr>
+        <td>{{ v.checkin_time.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td><a href="{{ url_for('visitor_detail', id=v.id) }}">{{ v.full_name }}</a></td>
+        <td>{{ v.host.name if v.host else '' }}</td>
+        <td>{{ v.unit.name if v.unit else '' }}</td>
+        <td>{{ v.purpose.name if v.purpose else '' }}</td>
+        <td>
+          {% if not v.checkout_time %}<span class="badge inside">Inside</span>
+          {% else %}<span class="badge out">Checked-out</span>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

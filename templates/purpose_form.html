@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Purpose · Digibook‑X{% endblock %}
+{% block content %}
+<h1 class="h1">{{ 'Edit Purpose' if p else 'New Purpose' }}</h1>
+<form method="POST" class="card" style="max-width:520px">
+  <label>Name</label>
+  <input class="input" name="name" value="{{ p.name if p else '' }}" required>
+  <div class="form-actions">
+    <button class="btn primary">Save</button>
+    <a class="btn" href="{{ url_for('purposes_list') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

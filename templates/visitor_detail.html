@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Visitor · Digibook‑X{% endblock %}
+{% block content %}
+<h1 class="h1">{{ v.full_name }}</h1>
+<div class="grid cols-2">
+  <div class="card">
+    <div class="h2">Details</div>
+    <p><strong>Phone:</strong> {{ v.phone }}</p>
+    <p><strong>ID/Passport:</strong> {{ v.id_number }}</p>
+    <p><strong>Vehicle:</strong> {{ v.vehicle_reg or '-' }}</p>
+    <p><strong>Host:</strong> {{ v.host.name if v.host else '-' }}</p>
+    <p><strong>Unit:</strong> {{ v.unit.name if v.unit else '-' }}</p>
+    <p><strong>Purpose:</strong> {{ v.purpose.name if v.purpose else '-' }}</p>
+    <p><strong>Badge No:</strong> {{ v.badge_no }}</p>
+    <p><strong>Check-in:</strong> {{ v.checkin_time.strftime('%Y-%m-%d %H:%M') }}</p>
+    <p><strong>Status:</strong>
+      {% if not v.checkout_time %}<span class="badge inside">Inside</span>
+      {% else %}<span class="badge out">Checked-out ({{ v.checkout_time.strftime('%Y-%m-%d %H:%M') }})</span>{% endif %}
+    </p>
+    <div class="form-actions">
+      <a class="btn" href="{{ url_for('visitor_badge', id=v.id) }}">Print Badge</a>
+      <a class="btn" href="{{ url_for('visitor_edit', id=v.id) }}">Edit</a>
+    </div>
+  </div>
+  <div class="card">
+    <div class="h2">Photo</div>
+    {% if v.photo_path %}
+      <img src="{{ url_for('static', filename='uploads/' ~ v.photo_path) }}" style="max-width:100%;border-radius:12px;border:1px solid var(--border)">
+    {% else %}
+      <p class="muted">No photo uploaded.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

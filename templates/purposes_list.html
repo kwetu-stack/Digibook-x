@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Purposes · Digibook‑X{% endblock %}
+{% block content %}
+<div class="row" style="align-items:center">
+  <h1 class="h1" style="flex:1">Purposes</h1>
+  <a class="btn primary" href="{{ url_for('purpose_new') }}">New Purpose</a>
+</div>
+<div class="card">
+  <table class="table">
+    <tr><th>Name</th><th></th></tr>
+    {% for p in items %}
+    <tr>
+      <td>{{ p.name }}</td>
+      <td><a class="btn small" href="{{ url_for('purpose_edit', id=p.id) }}">Edit</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}
