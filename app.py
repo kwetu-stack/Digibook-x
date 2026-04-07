@@ -443,21 +443,63 @@ def logout():
 from sqlalchemy import and_, inspect, text
 
 def ensure_schema():
+    """
+    Safely update database schema by:
+    1. Creating all tables first (if they don't exist)
+    2. Adding missing columns with safe try/except logic
+    3. Only running migrations that are needed
+    """
+    # STEP 1: Create all tables first
+    try:
+        db.create_all()
+    except Exception as e:
+        print(f"Warning: db.create_all() failed: {e}")
+    
+    # STEP 2: Safe schema updates - wrapped in try/except per operation
     inspector = inspect(db.engine)
-    visitor_columns = {col["name"] for col in inspector.get_columns("visitor")} if inspector.has_table("visitor") else set()
-
+    
+    # Check if visitor table exists (should exist after create_all)
+    if not inspector.has_table("visitor"):
+        print("Warning: visitor table does not exist after create_all()")
+        return
+    
+    # Get existing columns
+    visitor_columns = {col["name"] for col in inspector.get_columns("visitor")}
+    
+    # Safely add checkout_time column if missing
     if "checkout_time" not in visitor_columns:
-        ddl_type = "DATETIME" if db.engine.dialect.name == "sqlite" else "TIMESTAMP"
-        with db.engine.begin() as conn:
-            conn.execute(text(f"ALTER TABLE visitor ADD COLUMN checkout_time {ddl_type} NULL"))
+        try:
+            ddl_type = "DATETIME" if db.engine.dialect.name == "sqlite" else "TIMESTAMP"
+            with db.engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE visitor ADD COLUMN checkout_time {ddl_type} NULL"))
+        except Exception as e:
+            print(f"Info: checkout_time column already exists or migration skipped: {e}")
+    
+    # Safely add vehicle_type column if missing
     if "vehicle_type" not in visitor_columns:
-        with db.engine.begin() as conn:
-            conn.execute(text("ALTER TABLE visitor ADD COLUMN vehicle_type VARCHAR(40) NULL"))
+        try:
+            with db.engine.begin() as conn:
+                conn.execute(text("ALTER TABLE visitor ADD COLUMN vehicle_type VARCHAR(40) NULL"))
+        except Exception as e:
+            print(f"Info: vehicle_type column already exists or migration skipped: {e}")
+    
+    # Safely add national_id column if missing
     if "national_id" not in visitor_columns:
-        with db.engine.begin() as conn:
-            conn.execute(text("ALTER TABLE visitor ADD COLUMN national_id VARCHAR(60) NULL"))
-    with db.engine.begin() as conn:
-        conn.execute(text("UPDATE visitor SET national_id = id_number WHERE national_id IS NULL AND id_number IS NOT NULL"))
+        try:
+            with db.engine.begin() as conn:
+                conn.execute(text("ALTER TABLE visitor ADD COLUMN national_id VARCHAR(60) NULL"))
+        except Exception as e:
+            print(f"Info: national_id column already exists or migration skipped: {e}")
+    
+    # Update data: populate national_id from id_number where needed
+    try:
+        # Re-inspect columns after potential migrations
+        visitor_columns_updated = {col["name"] for col in inspector.get_columns("visitor")}
+        if "national_id" in visitor_columns_updated and "id_number" in visitor_columns_updated:
+            with db.engine.begin() as conn:
+                conn.execute(text("UPDATE visitor SET national_id = id_number WHERE national_id IS NULL AND id_number IS NOT NULL"))
+    except Exception as e:
+        print(f"Info: Data update skipped or already completed: {e}")
 
 def parse_optional_int(value):
     return int(value) if value else None
@@ -991,13 +1033,15 @@ def settings_page():
 # Run startup seed safely (works on Flask 3.0.x and 3.1+)
 try:
     with app.app_context():
-        ensure_schema()
-        ensure_seed()
-except Exception:
-    pass
+        ensure_seed()      # Create tables first
+        ensure_schema()    # Then update schema
+except Exception as e:
+    print(f"Initialization warning: {e}")
+    import traceback
+    traceback.print_exc()
 
 if __name__ == "__main__":
     with app.app_context():
-        ensure_schema()
-        ensure_seed()
+        ensure_seed()      # Create tables first
+        ensure_schema()    # Then update schema
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
