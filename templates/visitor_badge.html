@@ -17,9 +17,9 @@
     <div class="site">{{ setting.site_name or 'Site' }}</div>
     <div class="line"></div>
     <div><strong>Visitor:</strong> {{ v.full_name }}</div>
+    <div class="meta"><strong>ID Number:</strong> {{ v.national_id or v.id_number or '-' }}</div>
     <div class="meta"><strong>Badge:</strong> {{ v.badge_no }}</div>
-    <div class="meta"><strong>Host:</strong> {{ v.host.name if v.host else '-' }}</div>
-    <div class="meta"><strong>Unit:</strong> {{ v.unit.name if v.unit else '-' }}</div>
+    <div class="meta"><strong>Office/Department:</strong> {{ v.unit.name if v.unit else '-' }}</div>
     <div class="meta"><strong>Purpose:</strong> {{ v.purpose.name if v.purpose else '-' }}</div>
     <div class="meta"><strong>Check-in:</strong> {{ v.checkin_time.strftime('%Y-%m-%d %H:%M') }}</div>
     {% if setting.badge_footer %}<div class="line"></div><div class="meta">{{ setting.badge_footer }}</div>{% endif %}

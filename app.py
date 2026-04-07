@@ -49,7 +49,9 @@ if db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql://", 1)
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
-app.config["DEBUG"] = False
+app.config["DEBUG"] = True
+app.config["TEMPLATES_AUTO_RELOAD"] = True
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret")
 app.config["SQLALCHEMY_DATABASE_URI"] = db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -59,6 +61,17 @@ db = DemoSQLAlchemy(app)
 
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
+
+
+@app.context_processor
+def inject_asset_version():
+    def asset_version(filename: str) -> int:
+        try:
+            return int((BASE_DIR / "static" / filename).stat().st_mtime)
+        except OSError:
+            return 0
+
+    return {"asset_version": asset_version}
 
 # -------------------- Models --------------------
 class ActivityLog(db.Model):
@@ -116,8 +129,10 @@ class Visitor(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     full_name = db.Column(db.String(120), nullable=False)
     phone = db.Column(db.String(40), nullable=False)
+    national_id = db.Column(db.String(60))
     id_number = db.Column(db.String(60))
     vehicle_reg = db.Column(db.String(40))
+    vehicle_type = db.Column(db.String(40))
     host_id = db.Column(db.Integer, db.ForeignKey("host.id"))
     host = db.relationship("Host", lazy="joined")
     unit_id = db.Column(db.Integer, db.ForeignKey("unit.id"))
@@ -130,6 +145,30 @@ class Visitor(db.Model):
     notes = db.Column(db.String(255))
     photo_path = db.Column(db.String(255))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @property
+    def vehicle_plate(self):
+        return self.vehicle_reg
+
+    @vehicle_plate.setter
+    def vehicle_plate(self, value):
+        self.vehicle_reg = value
+
+    @property
+    def check_in_time(self):
+        return self.checkin_time
+
+    @check_in_time.setter
+    def check_in_time(self, value):
+        self.checkin_time = value
+
+    @property
+    def national_id_value(self):
+        return self.national_id or self.id_number
+
+    @property
+    def id_number_value(self):
+        return self.national_id or self.id_number
 
 # -------------------- Auth --------------------
 @login_manager.user_loader
@@ -173,63 +212,173 @@ def role_required(role):
         return wrapper
     return deco
 
+
+def get_safe_next_url():
+    next_url = request.args.get("next")
+    if next_url and next_url.startswith("/") and not next_url.startswith("//"):
+        return next_url
+    return None
+
+
+def ensure_authenticated():
+    if current_user.is_authenticated:
+        return None
+    if is_demo():
+        demo_user = User.query.filter_by(username="admin").first()
+        if demo_user:
+            login_user(demo_user)
+            return None
+    return redirect(url_for("login", next=request.path))
+
+HOSPITAL_LOCATIONS = [
+    ("Reception", "Office", "Ground floor lobby"),
+    ("Emergency (ER)", "Dept", "Emergency wing"),
+    ("ICU", "Dept", "Critical care unit"),
+    ("Ward A", "Dept", "Inpatient wing"),
+    ("Pharmacy", "Dept", "Ground floor"),
+    ("Lab", "Dept", "Diagnostics wing"),
+    ("Admin Office", "Office", "Administration block"),
+]
+
+HOSPITAL_PURPOSES = [
+    "Visit Patient",
+    "Consultation",
+    "Emergency",
+    "Delivery",
+    "Purchase Medicine",
+]
+
+HOSPITAL_STAFF = [
+    ("Reception Desk", "0712001001", "reception@digibookx.demo", "Reception"),
+    ("ER Triage Desk", "0712001002", "er@digibookx.demo", "Emergency (ER)"),
+    ("ICU Desk", "0712001003", "icu@digibookx.demo", "ICU"),
+    ("Ward A Desk", "0712001004", "warda@digibookx.demo", "Ward A"),
+    ("Pharmacy Desk", "0712001005", "pharmacy@digibookx.demo", "Pharmacy"),
+    ("Lab Desk", "0712001006", "lab@digibookx.demo", "Lab"),
+    ("Admin Desk", "0712001007", "admin@digibookx.demo", "Admin Office"),
+]
+
+HOSPITAL_VISITOR_SCENARIOS = [
+    ("Wanjiku Njeri", "0712345601", "25678901", "Ward A", "Ward A Desk", "Visit Patient", "KDA 234A", "Car", 6, 9, 15, True, 70),
+    ("Brian Otieno", "0722457801", "31245678", "Reception", "Reception Desk", "Consultation", "", "", 6, 11, 20, True, 45),
+    ("Joseph Mwangi", "0733568901", "27890123", "Emergency (ER)", "ER Triage Desk", "Emergency", "KCY 118Q", "SUV", 6, 2, 5, False, 0),
+    ("Mercy Chebet", "0701122301", "30124567", "Pharmacy", "Pharmacy Desk", "Purchase Medicine", "", "", 6, 8, 10, True, 35),
+    ("Peter Kiptoo", "0798765401", "22113456", "Lab", "Lab Desk", "Consultation", "KDL 541M", "Motorbike", 5, 13, 5, True, 25),
+    ("Alice Atieno", "0711123402", "33456789", "ICU", "ICU Desk", "Visit Patient", "", "", 5, 15, 0, True, 60),
+    ("Samuel Kariuki", "0722234502", "28765432", "Admin Office", "Admin Desk", "Delivery", "KDM 902R", "Pickup", 5, 10, 45, True, 40),
+    ("Faith Wangari", "0733345602", "24567890", "Reception", "Reception Desk", "Consultation", "", "", 5, 14, 30, True, 50),
+    ("George Odhiambo", "0744456702", "29876543", "ICU", "ICU Desk", "Visit Patient", "KCU 445P", "Car", 4, 19, 20, False, 0),
+    ("Janet Wairimu", "0755567802", "27654321", "Admin Office", "Admin Desk", "Delivery", "KDD 781B", "Van", 4, 7, 55, True, 20),
+    ("David Kimani", "0766678902", "24321098", "Emergency (ER)", "ER Triage Desk", "Emergency", "", "", 4, 1, 40, True, 180),
+    ("Lilian Akinyi", "0777789002", "31987654", "Reception", "Reception Desk", "Consultation", "KBT 334H", "SUV", 3, 9, 25, True, 55),
+    ("Mohamed Noor", "0788890102", "22654319", "Ward A", "Ward A Desk", "Visit Patient", "", "", 3, 12, 15, True, 20),
+    ("Lucy Muthoni", "0709901202", "29012345", "Pharmacy", "Pharmacy Desk", "Purchase Medicine", "", "", 3, 17, 40, True, 15),
+    ("Dennis Kipchumba", "0710012303", "25556667", "Lab", "Lab Desk", "Consultation", "KDG 200T", "Car", 2, 20, 10, False, 0),
+    ("Caroline Jepkosgei", "0721123403", "27889900", "Ward A", "Ward A Desk", "Visit Patient", "", "", 2, 8, 35, True, 30),
+    ("Martin Ochieng", "0732234503", "23334445", "Lab", "Lab Desk", "Consultation", "KCK 712E", "SUV", 2, 16, 5, True, 45),
+    ("Stella Naliaka", "0743345603", "29991111", "ICU", "ICU Desk", "Visit Patient", "", "", 1, 11, 50, True, 80),
+    ("Paul Mutiso", "0754456703", "24445556", "Admin Office", "Admin Desk", "Delivery", "KDV 850U", "Truck", 1, 6, 20, True, 15),
+    ("Naomi Wambui", "0765567803", "27778889", "Emergency (ER)", "ER Triage Desk", "Emergency", "", "", 1, 2, 15, True, 210),
+    ("Kevin Maina", "0776678903", "32223334", "Reception", "Reception Desk", "Consultation", "KDA 900C", "Car", 0, 10, 10, True, 50),
+    ("Purity Achieng", "0787789003", "28887776", "Pharmacy", "Pharmacy Desk", "Purchase Medicine", "", "", 0, 13, 25, True, 25),
+    ("Victor Ombui", "0798890103", "26665554", "Ward A", "Ward A Desk", "Visit Patient", "KBX 412L", "Motorbike", 0, 18, 15, False, 0),
+]
+
+def build_hospital_demo_visitors(units_by_name, hosts_by_name, purposes_by_name):
+    visitors = []
+    base_date = datetime.utcnow().date() - timedelta(days=6)
+    for i, row in enumerate(HOSPITAL_VISITOR_SCENARIOS, start=1):
+        name, phone, national_id, location_name, staff_name, purpose_name, plate, vehicle_type, day_offset, hour, minute, checked_out, stay_minutes = row
+        checkin_time = datetime.combine(base_date + timedelta(days=day_offset), datetime.min.time()) + timedelta(hours=hour, minutes=minute)
+        checkout_time = checkin_time + timedelta(minutes=stay_minutes) if checked_out else None
+        location = units_by_name.get(location_name)
+        staff = hosts_by_name.get(staff_name) if staff_name else None
+        purpose = purposes_by_name.get(purpose_name)
+        visitors.append(
+            Visitor(
+                full_name=name,
+                phone=phone,
+                national_id=national_id,
+                id_number=national_id,
+                vehicle_reg=plate or None,
+                vehicle_type=vehicle_type or None,
+                host_id=staff.id if staff else None,
+                unit_id=location.id if location else None,
+                purpose_id=purpose.id if purpose else None,
+                badge_no=gen_badge_no(checkin_time),
+                checkin_time=checkin_time,
+                checkout_time=checkout_time,
+                notes="Hospital demo record",
+            )
+        )
+    return visitors
+
+
+LEGACY_DEMO_UNIT_NAMES = {
+    "Gate",
+    "Block A",
+    "Block B",
+    "Management Office",
+    "Shops Wing",
+    "ICT Office",
+}
+
+EXPECTED_DEMO_UNIT_NAMES = {name for name, _, _ in HOSPITAL_LOCATIONS}
+
+
+def demo_dataset_needs_refresh():
+    existing_units = {name for (name,) in db.session.query(Unit.name).all()}
+    if not existing_units:
+        return False
+    if existing_units & LEGACY_DEMO_UNIT_NAMES:
+        return True
+    if existing_units != EXPECTED_DEMO_UNIT_NAMES:
+        return True
+    first_visitor = Visitor.query.order_by(Visitor.id.asc()).first()
+    return bool(first_visitor and not (first_visitor.national_id or first_visitor.id_number))
+
+
+def reset_demo_dataset():
+    Visitor.query.delete()
+    Host.query.delete()
+    Unit.query.delete()
+    Purpose.query.delete()
+
+    setting = Setting.query.first()
+    if setting:
+        setting.site_name = "Digibook-X Hospital"
+        setting.badge_footer = "Please return visitor badge at the hospital exit."
+        setting.site_logo_path = None
+
 def ensure_seed():
     db.create_all()
+    if is_demo() and demo_dataset_needs_refresh():
+        reset_demo_dataset()
     if not Setting.query.first():
-        s = Setting(site_name="Digibook-X", badge_footer="Please return badge at exit.")
+        s = Setting(site_name="Digibook-X Hospital", badge_footer="Please return visitor badge at the hospital exit.")
         db.session.add(s)
     if not Purpose.query.first():
-        for name in ["Delivery","Interview","Maintenance","Meeting","Guest/Family","Vendor"]:
+        for name in HOSPITAL_PURPOSES:
             db.session.add(Purpose(name=name))
     if not Unit.query.first():
-        units = [
-            ("Gate","Dept","Main entrance"),
-            ("Block A","House",""),
-            ("Block B","House",""),
-            ("Management Office","Office","Admin wing"),
-            ("Shops Wing","Shop","Ground floor"),
-        ]
-        for n,t,l in units:
+        for n, t, l in HOSPITAL_LOCATIONS:
             db.session.add(Unit(name=n, type=t, location=l))
     if not Host.query.first():
-        # Link to existing units by name
-        mgmt = Unit.query.filter_by(name="Management Office").first()
-        gate = Unit.query.filter_by(name="Gate").first()
-        blocka = Unit.query.filter_by(name="Block A").first()
-        ict = Unit(name="ICT Office", type="Dept", location="Admin wing"); db.session.add(ict); db.session.flush()
-        hosts = [
-            ("Estate Manager", None, None, mgmt.id if mgmt else None),
-            ("Security Office", None, None, gate.id if gate else None),
-            ("Block A – Apt 2C", None, None, blocka.id if blocka else None),
-            ("ICT Office", None, None, ict.id),
-            ("Shop 12 – Vendor", None, None, Unit.query.filter_by(name="Shops Wing").first().id if Unit.query.filter_by(name="Shops Wing").first() else None),
-        ]
-        for n,ph,em,uid in hosts:
-            db.session.add(Host(name=n, phone=ph, email=em, unit_id=uid, active=True))
+        units_by_name = {u.name: u for u in Unit.query.all()}
+        for name, phone, email, location_name in HOSPITAL_STAFF:
+            location = units_by_name.get(location_name)
+            if location:
+                db.session.add(Host(name=name, phone=phone, email=email, unit_id=location.id, active=True))
     if not User.query.first():
         admin = User(name="Admin", username="admin", role="Admin", active=True); admin.set_password("admin123")
         guard = User(name="Guard", username="guard", role="Guard", active=True); guard.set_password("guard123")
         db.session.add_all([admin, guard])
     if not Visitor.query.first():
-        import random
-        purposes = Purpose.query.all()
-        units = Unit.query.all()
-        hosts = Host.query.all()
-        names = ["John Doe","Mary W.","Ali K.","Beatrice N.","Kevin O.","Ruth K.","James M.","Zara S.","Peter P.","Nadia T."]
-        for i, nm in enumerate(names, start=1):
-            p = random.choice(purposes) if purposes else None
-            u = random.choice(units) if units else None
-            h = random.choice(hosts) if hosts else None
-            chk = datetime.utcnow() - timedelta(hours=random.randint(1,72))
-            out = None if i % 3 == 0 else chk + timedelta(hours=random.randint(1,6))
-            v = Visitor(
-                full_name=nm, phone="07%08d"%random.randint(1000000,9999999),
-                id_number=str(20000000+random.randint(0,999999)),
-                vehicle_reg="K%s %s"%(random.choice(list("BCDFGHJK")),"%03d"%random.randint(1,999)),
-                host_id=h.id if h else None, unit_id=u.id if u else None, purpose_id=p.id if p else None,
-                badge_no=gen_badge_no(chk), checkin_time=chk, checkout_time=out
-            )
-            db.session.add(v)
+        units_by_name = {u.name: u for u in Unit.query.all()}
+        hosts_by_name = {h.name: h for h in Host.query.all()}
+        purposes_by_name = {p.name: p for p in Purpose.query.all()}
+        for visitor in build_hospital_demo_visitors(units_by_name, hosts_by_name, purposes_by_name):
+            db.session.add(visitor)
     db.session.commit()
 
 def gen_badge_no(ref_time=None):
@@ -251,24 +400,17 @@ def health():
     return "OK"
 
 @app.route("/")
+@app.route("/dashboard")
 def dashboard():
-    # Auto-login demo user if in demo mode
-    if is_demo() and not current_user.is_authenticated:
-        demo_user = User.query.filter_by(username="admin").first()
-        if demo_user:
-            login_user(demo_user)
-    elif not is_demo() and not current_user.is_authenticated:
-        return redirect(url_for("login"))
-    
-    if not current_user.is_authenticated:
-        return redirect(url_for("login"))
+    auth_redirect = ensure_authenticated()
+    if auth_redirect:
+        return auth_redirect
     today = datetime.utcnow().date()
     start_month = today.replace(day=1)
     today_count = Visitor.query.filter(Visitor.checkin_time >= datetime.combine(today, datetime.min.time())).count()
     inside_count = Visitor.query.filter(Visitor.checkout_time.is_(None)).count()
     month_count = Visitor.query.filter(Visitor.checkin_time >= datetime.combine(start_month, datetime.min.time())).count()
-    recent = Visitor.query.order_by(Visitor.checkin_time.desc()).limit(10).all()
-    return render_template("dashboard.html", tiles={"today": today_count, "inside": inside_count, "month": month_count}, recent=recent)
+    return render_template("dashboard.html", tiles={"today": today_count, "inside": inside_count, "month": month_count})
 
 # ------ Auth ------
 @app.route("/login", methods=["GET","POST"])
@@ -278,7 +420,7 @@ def login():
         demo_user = User.query.filter_by(username="admin").first()
         if demo_user and not current_user.is_authenticated:
             login_user(demo_user)
-        return redirect(url_for("dashboard"))
+        return redirect(get_safe_next_url() or url_for("dashboard"))
     
     if request.method == "POST":
         u = User.query.filter_by(username=request.form["username"]).first()
@@ -287,7 +429,7 @@ def login():
             return redirect(url_for("login"))
         login_user(u)
         log("login", "User", u.id)
-        return redirect(url_for("dashboard"))
+        return redirect(get_safe_next_url() or url_for("dashboard"))
     return render_template("login.html")
 
 @app.route("/logout")
@@ -298,14 +440,38 @@ def logout():
     return redirect(url_for("login"))
 
 # ------ Visitors ------
-from sqlalchemy import and_
+from sqlalchemy import and_, inspect, text
+
+def ensure_schema():
+    inspector = inspect(db.engine)
+    visitor_columns = {col["name"] for col in inspector.get_columns("visitor")} if inspector.has_table("visitor") else set()
+
+    if "checkout_time" not in visitor_columns:
+        ddl_type = "DATETIME" if db.engine.dialect.name == "sqlite" else "TIMESTAMP"
+        with db.engine.begin() as conn:
+            conn.execute(text(f"ALTER TABLE visitor ADD COLUMN checkout_time {ddl_type} NULL"))
+    if "vehicle_type" not in visitor_columns:
+        with db.engine.begin() as conn:
+            conn.execute(text("ALTER TABLE visitor ADD COLUMN vehicle_type VARCHAR(40) NULL"))
+    if "national_id" not in visitor_columns:
+        with db.engine.begin() as conn:
+            conn.execute(text("ALTER TABLE visitor ADD COLUMN national_id VARCHAR(60) NULL"))
+    with db.engine.begin() as conn:
+        conn.execute(text("UPDATE visitor SET national_id = id_number WHERE national_id IS NULL AND id_number IS NOT NULL"))
+
+def parse_optional_int(value):
+    return int(value) if value else None
+
+def validate_visit_destination(unit_id):
+    if unit_id is None:
+        return "Office/Department to Visit is required."
+    return None
 
 def apply_filters(q):
     # shared filter parser for list & reports
     q_from = request.args.get("from") or request.args.get("q_from")
     q_to = request.args.get("to") or request.args.get("q_to")
     q_status = request.args.get("status") or request.args.get("q_status")
-    q_host_id = request.args.get("host_id") or request.args.get("q_host_id")
     q_unit_id = request.args.get("unit_id") or request.args.get("q_unit_id")
     q_purpose_id = request.args.get("purpose_id") or request.args.get("q_purpose_id")
 
@@ -318,8 +484,6 @@ def apply_filters(q):
         q = q.filter(Visitor.checkout_time.is_(None))
     elif q_status == "out":
         q = q.filter(Visitor.checkout_time.is_not(None))
-    if q_host_id:
-        q = q.filter(Visitor.host_id == int(q_host_id))
     if q_unit_id:
         q = q.filter(Visitor.unit_id == int(q_unit_id))
     if q_purpose_id:
@@ -328,31 +492,26 @@ def apply_filters(q):
 
 @app.route("/visitors")
 def visitors_list():
-    if is_demo() and not current_user.is_authenticated:
-        return redirect(url_for("login"))
-    if not is_demo():
-        if not current_user.is_authenticated:
-            return redirect(url_for("login"))
+    auth_redirect = ensure_authenticated()
+    if auth_redirect:
+        return auth_redirect
     q = Visitor.query.order_by(Visitor.checkin_time.desc())
     q = apply_filters(q)
     items = q.limit(200).all()
-    hosts = Host.query.order_by(Host.name).all()
     units = Unit.query.order_by(Unit.name).all()
     purposes = Purpose.query.order_by(Purpose.name).all()
     return render_template("visitors_list.html", items=items,
-                           hosts=hosts, units=units, purposes=purposes,
+                           units=units, purposes=purposes,
                            q_from=request.args.get("from"), q_to=request.args.get("to"),
                            q_status=request.args.get("status"),
-                           q_host_id=request.args.get("host_id"), q_unit_id=request.args.get("unit_id"),
+                           q_unit_id=request.args.get("unit_id"),
                            q_purpose_id=request.args.get("purpose_id"))
 
 @app.route("/visitors/new", methods=["GET","POST"])
 def visitor_new():
-    if is_demo() and not current_user.is_authenticated:
-        return redirect(url_for("login"))
-    if not is_demo() and not current_user.is_authenticated:
-        return redirect(url_for("login"))
-    hosts = Host.query.filter_by(active=True).order_by(Host.name).all()
+    auth_redirect = ensure_authenticated()
+    if auth_redirect:
+        return auth_redirect
     units = Unit.query.order_by(Unit.name).all()
     purposes = Purpose.query.order_by(Purpose.name).all()
     if request.method == "POST":
@@ -360,43 +519,46 @@ def visitor_new():
             flash("Demo Mode: Visitor check-in simulated. Changes will not be saved.", "info")
             return redirect(request.referrer or url_for("visitors_list"))
         
+        unit_id = parse_optional_int(request.form.get("unit_id"))
+        purpose_id = parse_optional_int(request.form.get("purpose_id"))
+        validation_error = validate_visit_destination(unit_id)
+        if validation_error:
+            flash(validation_error, "error")
+            return redirect(url_for("visitor_new"))
+
         v = Visitor(
             full_name=request.form["full_name"].strip(),
             phone=request.form["phone"].strip(),
-            id_number=request.form.get("id_number") or None,
+            national_id=request.form["national_id"].strip(),
+            id_number=request.form["national_id"].strip(),
             vehicle_reg=request.form.get("vehicle_reg") or None,
-            host_id=int(request.form["host_id"]) if request.form.get("host_id") else None,
-            unit_id=int(request.form["unit_id"]) if request.form.get("unit_id") else None,
-            purpose_id=int(request.form["purpose_id"]) if request.form.get("purpose_id") else None,
-            notes=request.form.get("notes") or None,
+            vehicle_type=request.form.get("vehicle_type") or None,
+            host_id=None,
+            unit_id=unit_id,
+            purpose_id=purpose_id,
             badge_no=gen_badge_no()
         )
-        # photo upload
-        f = request.files.get("photo")
-        if f and f.filename:
-            name = secure_filename(f"{uuid.uuid4().hex}_{f.filename}")
-            f.save(UPLOAD_DIR / name)
-            v.photo_path = name
         db.session.add(v); db.session.commit()
         log("create", "Visitor", v.id)
         flash(f"Visitor checked-in. <a href='{url_for('visitor_badge', id=v.id)}'>Print badge</a>", "ok")
         return redirect(url_for("visitors_list"))
-    return render_template("visitor_new.html", hosts=hosts, units=units, purposes=purposes)
+    return render_template("visitor_new.html", units=units, purposes=purposes)
 
 @app.route("/visitors/<int:id>")
 def visitor_detail(id):
-    if not current_user.is_authenticated:
-        return redirect(url_for("login"))
+    auth_redirect = ensure_authenticated()
+    if auth_redirect:
+        return auth_redirect
     v = Visitor.query.get_or_404(id)
     setting = Setting.query.first()
     return render_template("visitor_detail.html", v=v, setting=setting)
 
 @app.route("/visitors/<int:id>/edit", methods=["GET","POST"])
 def visitor_edit(id):
-    if not current_user.is_authenticated:
-        return redirect(url_for("login"))
+    auth_redirect = ensure_authenticated()
+    if auth_redirect:
+        return auth_redirect
     v = Visitor.query.get_or_404(id)
-    hosts = Host.query.filter_by(active=True).order_by(Host.name).all()
     units = Unit.query.order_by(Unit.name).all()
     purposes = Purpose.query.order_by(Purpose.name).all()
     if request.method == "POST":
@@ -404,33 +566,37 @@ def visitor_edit(id):
             flash("Demo Mode: Changes will not be saved.", "info")
             return redirect(request.referrer or url_for("visitors_list"))
         
+        unit_id = parse_optional_int(request.form.get("unit_id"))
+        purpose_id = parse_optional_int(request.form.get("purpose_id"))
+        validation_error = validate_visit_destination(unit_id)
+        if validation_error:
+            flash(validation_error, "error")
+            return redirect(url_for("visitor_edit", id=v.id))
+
         v.full_name = request.form["full_name"].strip()
         v.phone = request.form["phone"].strip()
-        v.id_number = request.form.get("id_number") or None
+        v.national_id = request.form["national_id"].strip()
+        v.id_number = request.form["national_id"].strip()
         v.vehicle_reg = request.form.get("vehicle_reg") or None
-        v.host_id = int(request.form["host_id"]) if request.form.get("host_id") else None
-        v.unit_id = int(request.form["unit_id"]) if request.form.get("unit_id") else None
-        v.purpose_id = int(request.form["purpose_id"]) if request.form.get("purpose_id") else None
-        v.notes = request.form.get("notes") or None
-        f = request.files.get("photo")
-        if f and f.filename:
-            name = secure_filename(f"{uuid.uuid4().hex}_{f.filename}")
-            f.save(UPLOAD_DIR / name)
-            v.photo_path = name
+        v.vehicle_type = request.form.get("vehicle_type") or None
+        v.host_id = None
+        v.unit_id = unit_id
+        v.purpose_id = purpose_id
         db.session.commit()
         log("update", "Visitor", v.id)
         flash("Saved.", "ok")
         return redirect(url_for("visitor_edit", id=v.id))
-    return render_template("visitor_edit.html", v=v, hosts=hosts, units=units, purposes=purposes)
+    return render_template("visitor_edit.html", v=v, units=units, purposes=purposes)
 
 @app.route("/visitors/<int:id>/checkout", methods=["POST"])
 def visitor_checkout(id):
-    if not current_user.is_authenticated:
-        return redirect(url_for("login"))
+    auth_redirect = ensure_authenticated()
+    if auth_redirect:
+        return auth_redirect
     
     v = Visitor.query.get_or_404(id)
     if is_demo():
-        flash("Demo Mode: Checkout simulated. Changes will not be saved.", "info")
+        flash("Demo Mode: Check-out simulated. Changes will not be saved.", "info")
         return redirect(url_for("visitor_edit", id=id))
     
     if not v.checkout_time:
@@ -442,8 +608,9 @@ def visitor_checkout(id):
 
 @app.route("/visitors/<int:id>/delete", methods=["POST"])
 def visitor_delete(id):
-    if not current_user.is_authenticated:
-        return redirect(url_for("login"))
+    auth_redirect = ensure_authenticated()
+    if auth_redirect:
+        return auth_redirect
     
     if is_demo():
         flash("Demo Mode: Delete action is disabled.", "warning")
@@ -457,8 +624,9 @@ def visitor_delete(id):
 
 @app.route("/visitors/<int:id>/badge")
 def visitor_badge(id):
-    if not current_user.is_authenticated:
-        return redirect(url_for("login"))
+    auth_redirect = ensure_authenticated()
+    if auth_redirect:
+        return auth_redirect
     v = Visitor.query.get_or_404(id)
     setting = Setting.query.first() or Setting(site_name="Site")
     return render_template("visitor_badge.html", v=v, setting=setting)
@@ -466,8 +634,9 @@ def visitor_badge(id):
 # ------ Hosts CRUD ------
 @app.route("/hosts")
 def hosts_list():
-    if not current_user.is_authenticated:
-        return redirect(url_for("login"))
+    auth_redirect = ensure_authenticated()
+    if auth_redirect:
+        return auth_redirect
     items = Host.query.order_by(Host.name).all()
     return render_template("hosts_list.html", items=items)
 
@@ -477,14 +646,19 @@ def host_new():
     units = Unit.query.order_by(Unit.name).all()
     if request.method == "POST":
         if is_demo():
-            flash("Demo Mode: Host creation simulated. Changes will not be saved.", "info")
+            flash("Demo Mode: Contact creation simulated. Changes will not be saved.", "info")
             return redirect(url_for("hosts_list"))
         
+        unit_id = parse_optional_int(request.form.get("unit_id"))
+        if unit_id is None:
+            flash("Office/Department assignment is required.", "error")
+            return redirect(url_for("host_new"))
+
         h = Host(
             name=request.form["name"].strip(),
             phone=request.form.get("phone") or None,
             email=request.form.get("email") or None,
-            unit_id=int(request.form["unit_id"]) if request.form.get("unit_id") else None,
+            unit_id=unit_id,
             active=(request.form.get("active","1")=="1")
         )
         db.session.add(h); db.session.commit()
@@ -502,10 +676,15 @@ def host_edit(id):
             flash("Demo Mode: Changes will not be saved.", "info")
             return redirect(url_for("hosts_list"))
         
+        unit_id = parse_optional_int(request.form.get("unit_id"))
+        if unit_id is None:
+            flash("Office/Department assignment is required.", "error")
+            return redirect(url_for("host_edit", id=h.id))
+
         h.name = request.form["name"].strip()
         h.phone = request.form.get("phone") or None
         h.email = request.form.get("email") or None
-        h.unit_id = int(request.form["unit_id"]) if request.form.get("unit_id") else None
+        h.unit_id = unit_id
         h.active = (request.form.get("active","1")=="1")
         db.session.commit()
         log("update","Host",h.id)
@@ -527,9 +706,11 @@ def host_delete(id):
 
 # ------ Units CRUD ------
 @app.route("/units")
+@app.route("/locations")
 def units_list():
-    if not current_user.is_authenticated:
-        return redirect(url_for("login"))
+    auth_redirect = ensure_authenticated()
+    if auth_redirect:
+        return auth_redirect
     items = Unit.query.order_by(Unit.name).all()
     return render_template("units_list.html", items=items)
 
@@ -538,7 +719,7 @@ def units_list():
 def unit_new():
     if request.method == "POST":
         if is_demo():
-            flash("Demo Mode: Unit creation simulated. Changes will not be saved.", "info")
+            flash("Demo Mode: Office/Department creation simulated. Changes will not be saved.", "info")
             return redirect(url_for("units_list"))
         
         u = Unit(name=request.form["name"].strip(), type=request.form["type"], location=request.form.get("location") or None)
@@ -580,8 +761,9 @@ def unit_delete(id):
 # ------ Purposes CRUD ------
 @app.route("/purposes")
 def purposes_list():
-    if not current_user.is_authenticated:
-        return redirect(url_for("login"))
+    auth_redirect = ensure_authenticated()
+    if auth_redirect:
+        return auth_redirect
     items = Purpose.query.order_by(Purpose.name).all()
     return render_template("purposes_list.html", items=items)
 
@@ -698,19 +880,19 @@ def user_delete(id):
 # ------ Reports & Export ------
 @app.route("/reports")
 def reports():
-    if not current_user.is_authenticated:
-        return redirect(url_for("login"))
+    auth_redirect = ensure_authenticated()
+    if auth_redirect:
+        return auth_redirect
     q = Visitor.query.order_by(Visitor.checkin_time.desc())
     q = apply_filters(q)
     items = q.limit(500).all()
-    hosts = Host.query.order_by(Host.name).all()
     units = Unit.query.order_by(Unit.name).all()
     purposes = Purpose.query.order_by(Purpose.name).all()
     return render_template("reports.html", items=items,
-                           hosts=hosts, units=units, purposes=purposes,
+                           units=units, purposes=purposes,
                            q_from=request.args.get("from"), q_to=request.args.get("to"),
                            q_status=request.args.get("status"),
-                           q_host_id=request.args.get("host_id"), q_unit_id=request.args.get("unit_id"),
+                           q_unit_id=request.args.get("unit_id"),
                            q_purpose_id=request.args.get("purpose_id"))
 
 def _export_rows():
@@ -719,18 +901,23 @@ def _export_rows():
 
 @app.route("/export/csv")
 def export_csv():
-    if not current_user.is_authenticated:
-        return redirect(url_for("login"))
+    auth_redirect = ensure_authenticated()
+    if auth_redirect:
+        return auth_redirect
     rows = _export_rows()
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(["checkin_time","checkout_time","full_name","phone","id_number","vehicle_reg","host","unit","purpose","badge_no"])
+    w.writerow(["check_in","check_out","visitor","phone","national_id","office_or_department_to_visit","purpose","vehicle","status","badge_no"])
     for v in rows:
+        status = "Active" if not v.checkout_time else "Checked-out"
+        vehicle = v.vehicle_reg or ""
+        if vehicle and v.vehicle_type:
+            vehicle = f"{vehicle} ({v.vehicle_type})"
         w.writerow([
             v.checkin_time.strftime("%Y-%m-%d %H:%M"),
-            v.checkout_time.strftime("%Y-%m-%d %H:%M") if v.checkout_time else "",
-            v.full_name, v.phone, v.id_number or "", v.vehicle_reg or "",
-            v.host.name if v.host else "", v.unit.name if v.unit else "", v.purpose.name if v.purpose else "",
+            v.checkout_time.strftime("%Y-%m-%d %H:%M") if v.checkout_time else "Active",
+            v.full_name, v.phone, v.national_id or v.id_number or "", v.unit.name if v.unit else "", v.purpose.name if v.purpose else "",
+            vehicle, status,
             v.badge_no or ""
         ])
     return send_file(io.BytesIO(buf.getvalue().encode("utf-8")), as_attachment=True,
@@ -739,8 +926,9 @@ def export_csv():
 
 @app.route("/export/pdf")
 def export_pdf():
-    if not current_user.is_authenticated:
-        return redirect(url_for("login"))
+    auth_redirect = ensure_authenticated()
+    if auth_redirect:
+        return auth_redirect
     rows = _export_rows()
     if not canvas:
         flash("PDF engine not available. Install reportlab or use CSV export.", "error")
@@ -753,11 +941,15 @@ def export_pdf():
     c.drawString(2*cm, 20*cm, "Digibook-X Visitors Export")
     c.setFont("Helvetica", 10)
     y = 19*cm
-    headers = ["Date","Name","Host","Unit","Purpose","Status","Badge"]
+    headers = ["Check-in","Check-out","Visitor","ID Number","Office/Department","Purpose","Vehicle","Status"]
     c.drawString(2*cm, y, " | ".join(headers)); y -= 0.8*cm
     for v in rows[:200]:
-        status = "Inside" if not v.checkout_time else "Checked-out"
-        line = f"{v.checkin_time:%Y-%m-%d %H:%M} | {v.full_name} | {v.host.name if v.host else ''} | {v.unit.name if v.unit else ''} | {v.purpose.name if v.purpose else ''} | {status} | {v.badge_no}"
+        status = "Active" if not v.checkout_time else "Checked-out"
+        vehicle = v.vehicle_reg or "-"
+        if v.vehicle_reg and v.vehicle_type:
+            vehicle = f"{v.vehicle_reg} ({v.vehicle_type})"
+        checkout_display = v.checkout_time.strftime("%Y-%m-%d %H:%M") if v.checkout_time else "Active"
+        line = f"{v.checkin_time:%Y-%m-%d %H:%M} | {checkout_display} | {v.full_name} | {v.national_id or v.id_number or ''} | {v.unit.name if v.unit else ''} | {v.purpose.name if v.purpose else ''} | {vehicle} | {status}"
         c.drawString(2*cm, y, line[:180])
         y -= 0.6*cm
         if y < 2*cm:
@@ -799,11 +991,13 @@ def settings_page():
 # Run startup seed safely (works on Flask 3.0.x and 3.1+)
 try:
     with app.app_context():
+        ensure_schema()
         ensure_seed()
 except Exception:
     pass
 
 if __name__ == "__main__":
     with app.app_context():
+        ensure_schema()
         ensure_seed()
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))

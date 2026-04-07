@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Reports · Digibook‑X{% endblock %}
+{% block title %}Reports - Digibook-X{% endblock %}
 {% block content %}
 <h1 class="h1">Reports</h1>
 <form method="get" class="card">
@@ -10,21 +10,14 @@
       <label>Status</label>
       <select name="status">
         <option value="">-- any --</option>
-        <option value="inside" {{ 'selected' if q_status=='inside' else '' }}>Inside</option>
+        <option value="inside" {{ 'selected' if q_status=='inside' else '' }}>Checked-in</option>
         <option value="out" {{ 'selected' if q_status=='out' else '' }}>Checked-out</option>
       </select>
     </div>
   </div>
   <div class="row">
     <div class="col">
-      <label>Host</label>
-      <select name="host_id">
-        <option value="">-- any --</option>
-        {% for h in hosts %}<option value="{{ h.id }}" {{ 'selected' if q_host_id==h.id|string else '' }}>{{ h.name }}</option>{% endfor %}
-      </select>
-    </div>
-    <div class="col">
-      <label>Unit/Dept</label>
+      <label>Office/Department To Visit</label>
       <select name="unit_id">
         <option value="">-- any --</option>
         {% for u in units %}<option value="{{ u.id }}" {{ 'selected' if q_unit_id==u.id|string else '' }}>{{ u.name }}</option>{% endfor %}
@@ -49,15 +42,18 @@
 <div class="card">
   <div class="h2">Results ({{ items|length }})</div>
   <table class="table">
-    <tr><th>Date</th><th>Name</th><th>Host</th><th>Unit</th><th>Purpose</th><th>Status</th></tr>
+    <tr><th>Check-in</th><th>Check-out</th><th>Visitor</th><th>Phone</th><th>ID Number</th><th>Office/Department To Visit</th><th>Purpose</th><th>Vehicle</th><th>Status</th></tr>
     {% for v in items %}
     <tr>
       <td>{{ v.checkin_time.strftime('%Y-%m-%d %H:%M') }}</td>
+      <td>{{ v.checkout_time.strftime('%Y-%m-%d %H:%M') if v.checkout_time else 'Active' }}</td>
       <td>{{ v.full_name }}</td>
-      <td>{{ v.host.name if v.host else '' }}</td>
-      <td>{{ v.unit.name if v.unit else '' }}</td>
-      <td>{{ v.purpose.name if v.purpose else '' }}</td>
-      <td>{% if not v.checkout_time %}<span class="badge inside">Inside</span>{% else %}<span class="badge out">Checked-out</span>{% endif %}</td>
+      <td>{{ v.phone }}</td>
+      <td>{{ v.national_id or v.id_number or '—' }}</td>
+      <td>{{ v.unit.name if v.unit else '—' }}</td>
+      <td>{{ v.purpose.name if v.purpose else '—' }}</td>
+      <td>{{ v.vehicle_reg ~ (' (' ~ v.vehicle_type ~ ')' if v.vehicle_type else '') if v.vehicle_reg else '—' }}</td>
+      <td>{% if not v.checkout_time %}<span class="badge inside">Checked-in</span>{% else %}<span class="badge out">Checked-out</span>{% endif %}</td>
     </tr>
     {% endfor %}
   </table>

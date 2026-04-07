@@ -1,34 +1,24 @@
 {% extends "base.html" %}
-{% block title %}Visitor · Digibook‑X{% endblock %}
+{% block title %}Visitor - Digibook-X{% endblock %}
 {% block content %}
 <h1 class="h1">{{ v.full_name }}</h1>
-<div class="grid cols-2">
-  <div class="card">
-    <div class="h2">Details</div>
-    <p><strong>Phone:</strong> {{ v.phone }}</p>
-    <p><strong>ID/Passport:</strong> {{ v.id_number }}</p>
-    <p><strong>Vehicle:</strong> {{ v.vehicle_reg or '-' }}</p>
-    <p><strong>Host:</strong> {{ v.host.name if v.host else '-' }}</p>
-    <p><strong>Unit:</strong> {{ v.unit.name if v.unit else '-' }}</p>
-    <p><strong>Purpose:</strong> {{ v.purpose.name if v.purpose else '-' }}</p>
-    <p><strong>Badge No:</strong> {{ v.badge_no }}</p>
-    <p><strong>Check-in:</strong> {{ v.checkin_time.strftime('%Y-%m-%d %H:%M') }}</p>
-    <p><strong>Status:</strong>
-      {% if not v.checkout_time %}<span class="badge inside">Inside</span>
-      {% else %}<span class="badge out">Checked-out ({{ v.checkout_time.strftime('%Y-%m-%d %H:%M') }})</span>{% endif %}
-    </p>
-    <div class="form-actions">
-      <a class="btn" href="{{ url_for('visitor_badge', id=v.id) }}">Print Badge</a>
-      <a class="btn" href="{{ url_for('visitor_edit', id=v.id) }}">Edit</a>
-    </div>
-  </div>
-  <div class="card">
-    <div class="h2">Photo</div>
-    {% if v.photo_path %}
-      <img src="{{ url_for('static', filename='uploads/' ~ v.photo_path) }}" style="max-width:100%;border-radius:12px;border:1px solid var(--border)">
-    {% else %}
-      <p class="muted">No photo uploaded.</p>
-    {% endif %}
+<div class="card">
+  <div class="h2">Visitor Details</div>
+  <p><strong>Phone:</strong> {{ v.phone }}</p>
+  <p><strong>National ID Number:</strong> {{ v.national_id or v.id_number or '—' }}</p>
+  <p><strong>Office/Department To Visit:</strong> {{ v.unit.name if v.unit else '—' }}</p>
+  <p><strong>Purpose:</strong> {{ v.purpose.name if v.purpose else '—' }}</p>
+  <p><strong>Vehicle:</strong> {{ v.vehicle_reg ~ (' (' ~ v.vehicle_type ~ ')' if v.vehicle_type else '') if v.vehicle_reg else '—' }}</p>
+  <p><strong>Badge No:</strong> {{ v.badge_no }}</p>
+  <p><strong>Check-in:</strong> {{ v.checkin_time.strftime('%Y-%m-%d %H:%M') }}</p>
+  <p><strong>Check-out:</strong> {{ v.checkout_time.strftime('%Y-%m-%d %H:%M') if v.checkout_time else 'Active' }}</p>
+  <p><strong>Status:</strong>
+    {% if not v.checkout_time %}<span class="badge inside">Checked-in</span>
+    {% else %}<span class="badge out">Checked-out</span>{% endif %}
+  </p>
+  <div class="form-actions">
+    <a class="btn" href="{{ url_for('visitor_badge', id=v.id) }}">Print Badge</a>
+    <a class="btn" href="{{ url_for('visitor_edit', id=v.id) }}">Edit</a>
   </div>
 </div>
 {% endblock %}

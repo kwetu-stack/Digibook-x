@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Host · Digibook‑X{% endblock %}
+{% block title %}Directory Contact - Digibook-X{% endblock %}
 {% block content %}
-<h1 class="h1">{{ 'Edit Host' if h else 'New Host' }}</h1>
+<h1 class="h1">{{ 'Edit Contact' if h else 'New Contact' }}</h1>
 <form method="POST" class="card">
   <div class="row">
     <div class="col"><label>Name</label><input class="input" name="name" value="{{ h.name if h else '' }}" required></div>
@@ -10,9 +10,9 @@
   </div>
   <div class="row">
     <div class="col">
-      <label>Unit/Dept</label>
-      <select name="unit_id">
-        <option value="">-- none --</option>
+      <label>Office/Department</label>
+      <select name="unit_id" required>
+        <option value="">-- select office/department --</option>
         {% for u in units %}
           <option value="{{ u.id }}" {{ 'selected' if h and h.unit_id==u.id else '' }}>{{ u.name }}</option>
         {% endfor %}

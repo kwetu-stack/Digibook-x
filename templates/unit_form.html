@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Unit · Digibook‑X{% endblock %}
+{% block title %}Office/Department - Digibook-X{% endblock %}
 {% block content %}
-<h1 class="h1">{{ 'Edit Unit' if u else 'New Unit' }}</h1>
+<h1 class="h1">{{ 'Edit Office/Department' if u else 'New Office/Department' }}</h1>
 <form method="POST" class="card">
   <div class="row">
-    <div class="col"><label>Name</label><input class="input" name="name" value="{{ u.name if u else '' }}" required></div>
+    <div class="col"><label>Office/Department Name</label><input class="input" name="name" value="{{ u.name if u else '' }}" required></div>
     <div class="col">
       <label>Type</label>
       <select name="type" required>
@@ -13,7 +13,7 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col"><label>Location</label><input class="input" name="location" value="{{ u.location if u else '' }}"></div>
+    <div class="col"><label>Physical Area</label><input class="input" name="location" value="{{ u.location if u else '' }}"></div>
   </div>
   <div class="form-actions">
     <button class="btn primary">Save</button>

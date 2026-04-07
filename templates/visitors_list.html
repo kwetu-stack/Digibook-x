@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Visitors · Digibook‑X{% endblock %}
+{% block title %}Visitors - Digibook-X{% endblock %}
 {% block content %}
 <div class="row" style="align-items:center">
   <h1 class="h1" style="flex:1">Visitors</h1>
@@ -20,21 +20,12 @@
       <label>Status</label>
       <select name="status">
         <option value="">-- any --</option>
-        <option value="inside" {{ 'selected' if q_status=='inside' else '' }}>Inside</option>
+        <option value="inside" {{ 'selected' if q_status=='inside' else '' }}>Checked-in</option>
         <option value="out" {{ 'selected' if q_status=='out' else '' }}>Checked-out</option>
       </select>
     </div>
     <div class="col">
-      <label>Host</label>
-      <select name="host_id">
-        <option value="">-- any --</option>
-        {% for h in hosts %}
-        <option value="{{ h.id }}" {{ 'selected' if q_host_id==h.id|string else '' }}>{{ h.name }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col">
-      <label>Unit/Dept</label>
+      <label>Office/Department To Visit</label>
       <select name="unit_id">
         <option value="">-- any --</option>
         {% for u in units %}
@@ -60,27 +51,53 @@
   </div>
 </form>
 
-<div class="card">
-  <table class="table">
+<div class="card visitors-table-wrap">
+  <table class="table visitors-table">
     <tr>
-      <th>Check-in</th><th>Name</th><th>Phone</th><th>Host</th><th>Unit</th><th>Purpose</th><th>Badge</th><th>Status</th><th></th>
+      <th>Visitor</th><th>Phone</th><th>ID Number</th><th>Office/Department To Visit</th><th>Purpose</th><th>Vehicle</th><th>Check-in</th><th>Check-out</th><th>Status</th>
     </tr>
     {% for v in items %}
     <tr>
-      <td>{{ v.checkin_time.strftime('%Y-%m-%d %H:%M') }}</td>
       <td><a href="{{ url_for('visitor_detail', id=v.id) }}">{{ v.full_name }}</a></td>
       <td>{{ v.phone }}</td>
-      <td>{{ v.host.name if v.host else '' }}</td>
-      <td>{{ v.unit.name if v.unit else '' }}</td>
-      <td>{{ v.purpose.name if v.purpose else '' }}</td>
-      <td>{{ v.badge_no }}</td>
-      <td>{% if not v.checkout_time %}<span class="badge inside">Inside</span>{% else %}<span class="badge out">Checked-out</span>{% endif %}</td>
-      <td>
-        <a class="btn small" href="{{ url_for('visitor_badge', id=v.id) }}">Badge</a>
-        <a class="btn small" href="{{ url_for('visitor_edit', id=v.id) }}">Edit</a>
-      </td>
+      <td>{{ v.national_id or v.id_number or '-' }}</td>
+      <td>{{ v.unit.name if v.unit else '-' }}</td>
+      <td>{{ v.purpose.name if v.purpose else '-' }}</td>
+      <td>{{ v.vehicle_reg ~ (' (' ~ v.vehicle_type ~ ')' if v.vehicle_type else '') if v.vehicle_reg else '-' }}</td>
+      <td>{{ v.checkin_time.strftime('%Y-%m-%d %H:%M') }}</td>
+      <td>{{ v.checkout_time.strftime('%Y-%m-%d %H:%M') if v.checkout_time else 'Active' }}</td>
+      <td>{% if not v.checkout_time %}<span class="badge inside">Checked-in</span>{% else %}<span class="badge out">Checked-out</span>{% endif %}</td>
     </tr>
     {% endfor %}
   </table>
+</div>
+
+<div class="visitors-mobile-list">
+  {% for v in items %}
+  <div class="visitor-mobile-card" data-detail-url="{{ url_for('visitor_detail', id=v.id) }}" tabindex="0" role="link" aria-label="Open visitor details for {{ v.full_name }}">
+    <div class="visitor-mobile-top">
+      <div class="visitor-mobile-name">{{ v.full_name }}</div>
+      <div class="visitor-mobile-phone">{{ v.phone }}</div>
+    </div>
+    <div class="visitor-mobile-section">
+      <div class="visitor-mobile-row"><span class="visitor-mobile-label">National ID</span><span>{{ v.national_id or v.id_number or '-' }}</span></div>
+      <div class="visitor-mobile-row"><span class="visitor-mobile-label">Office/Department</span><span>{{ v.unit.name if v.unit else '-' }}</span></div>
+      <div class="visitor-mobile-row"><span class="visitor-mobile-label">Purpose</span><span>{{ v.purpose.name if v.purpose else '-' }}</span></div>
+    </div>
+    <div class="visitor-mobile-section">
+      <div class="visitor-mobile-row"><span class="visitor-mobile-label">Vehicle</span><span>{{ v.vehicle_reg ~ (' (' ~ v.vehicle_type ~ ')' if v.vehicle_type else '') if v.vehicle_reg else '-' }}</span></div>
+      <div class="visitor-mobile-row"><span class="visitor-mobile-label">Check-in</span><span>{{ v.checkin_time.strftime('%Y-%m-%d %H:%M') }}</span></div>
+      <div class="visitor-mobile-row"><span class="visitor-mobile-label">Check-out</span><span>{{ v.checkout_time.strftime('%Y-%m-%d %H:%M') if v.checkout_time else 'Active' }}</span></div>
+      <div class="visitor-mobile-status">
+        <span class="visitor-mobile-label">Status</span>
+        {% if not v.checkout_time %}<span class="badge inside">Checked-in</span>{% else %}<span class="badge out">Checked-out</span>{% endif %}
+      </div>
+    </div>
+    <div class="visitor-mobile-actions">
+      <a class="btn small" href="{{ url_for('visitor_badge', id=v.id) }}">Badge</a>
+      <a class="btn small" href="{{ url_for('visitor_edit', id=v.id) }}">Edit</a>
+    </div>
+  </div>
+  {% endfor %}
 </div>
 {% endblock %}

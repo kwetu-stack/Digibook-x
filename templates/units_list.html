@@ -1,13 +1,13 @@
 {% extends "base.html" %}
-{% block title %}Units · Digibook‑X{% endblock %}
+{% block title %}Locations - Digibook-X{% endblock %}
 {% block content %}
 <div class="row" style="align-items:center">
-  <h1 class="h1" style="flex:1">Units / Departments</h1>
-  <a class="btn primary" href="{{ url_for('unit_new') }}">New Unit</a>
+  <h1 class="h1" style="flex:1">Office/Department List</h1>
+  <a class="btn primary" href="{{ url_for('unit_new') }}">New Office/Department</a>
 </div>
 <div class="card">
   <table class="table">
-    <tr><th>Name</th><th>Type</th><th>Location</th><th></th></tr>
+    <tr><th>Office/Department</th><th>Type</th><th>Physical Area</th><th></th></tr>
     {% for u in items %}
     <tr>
       <td>{{ u.name }}</td><td>{{ u.type }}</td><td>{{ u.location or '-' }}</td>
